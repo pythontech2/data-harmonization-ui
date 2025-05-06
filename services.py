@@ -62,45 +62,42 @@ class DataHarmonizationService:
         Submit harmonization request to the webhook
         """
         api_url = os.getenv("N8N_WEBHOOK_URL")  # Get the webhook url
-        api_key = os.getenv("N8N_API_KEY")  # Get the api key
-        workflow_id = os.getenv("WORKFLOW_ID")  # Get the workflow id
+        # api_key = os.getenv("N8N_API_KEY")  # Get the api key
+        # workflow_id = os.getenv("WORKFLOW_ID")  # Get the workflow id
 
         # Prepare files
         files = {"input_file": (input_file.name, input_file, "application/json")}
 
         # Make the POST request
         response = requests.post(api_url, data=form_data, files=files, timeout=240)
-
-        # Get the execution id
-        response_2 = requests.get(
-            f"https://riskdatalab.app.n8n.cloud/api/v1/executions?workflowId={workflow_id}",
-            headers={"X-N8N-API-KEY": api_key},
-        )
-        execution_id = int(response_2.json()["data"][0]["id"])
-        print("execution_id::", execution_id)
-
-        if generate_missing_key:
-            execution_id = execution_id + 1
-        else:
-            execution_id = execution_id + 2
+        print("=====response::", response.json())
+        
         while True:
-            # Get the execution status
-            response_3 = requests.get(
-                f"https://riskdatalab.app.n8n.cloud/api/v1/executions/{execution_id}",
-                headers={"X-N8N-API-KEY": api_key},
-            )
-            if response_3.json()["finished"] and response_3.json()["mode"] == "webhook":
-                print("In the if")
+            print("In the while loop")
+            query = {
+                "$or": [
+                    {
+                        "statusFlow": { "$lt": "3" },
+                        "schemaVersion": { "$regex": "_err$" }
+                    },
+                    {
+                        "statusFlow": "3",
+                        "schemaVersion": {
+                            "$eq": form_data["target_schema_version"]
+                            
+                        }
+                    }
+                ]
+            }
+            result = list(self.schema_collection_data.find(query))
+            print("result::", result)
+            if result:
                 return {
-                    "status_code": response.status_code,
-                    "response_data": response.json()
-                    if response.status_code == 200
-                    else response.text,
+                    "status_code": 200,
+                    "response_data": result
                 }
-            elif response_3.json()["mode"] == "error":
-                return False
-            else:
-                time.sleep(10)
+            time.sleep(10)
+       
 
     def fetch_keymap_data(self, provider_name: str):
         try:
@@ -140,6 +137,8 @@ class DataHarmonizationService:
             keymap_result = self.schema_collection_keymap.update_one(
                 {"_id": keymap_id}, {"$set": {provider_name: updated_keymap}}
             )
+            print("data_result::", data_result)
+            print("keymap_result::", keymap_result)
             return data_result.modified_count > 0 or keymap_result.modified_count > 0
         except Exception as e:
             print(f"Error updating collections: {str(e)}")
