@@ -56,7 +56,7 @@ class DataHarmonizationService:
             return []
 
     def submit_harmonization_request(
-        self, form_data: Dict[str, Any], input_file: Any
+        self, form_data: Dict[str, Any], input_file: Any,generate_missing_key:bool
     ) -> Dict[str, Any]:
         """
         Submit harmonization request to the webhook
@@ -78,10 +78,15 @@ class DataHarmonizationService:
         )
         execution_id = int(response_2.json()["data"][0]["id"])
         print("execution_id::", execution_id)
+
+        if generate_missing_key:
+            execution_id = execution_id + 1
+        else:
+            execution_id = execution_id + 2
         while True:
             # Get the execution status
             response_3 = requests.get(
-                f"https://riskdatalab.app.n8n.cloud/api/v1/executions/{execution_id + 1}",
+                f"https://riskdatalab.app.n8n.cloud/api/v1/executions/{execution_id}",
                 headers={"X-N8N-API-KEY": api_key},
             )
             if response_3.json()["finished"] and response_3.json()["mode"] == "webhook":

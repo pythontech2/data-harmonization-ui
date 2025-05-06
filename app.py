@@ -90,7 +90,7 @@ def handle_form_submission(
         "target_schema_version": target_schema_version,
         "generate_missing_key": str(generate_missing_key).lower(),
     }
-    result = service.submit_harmonization_request(form_data, input_file)
+    result = service.submit_harmonization_request(form_data, input_file,generate_missing_key)
 
     if result:
         st.success("KeyMap and Master Schema successfully generated!")
