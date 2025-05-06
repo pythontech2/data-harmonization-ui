@@ -226,10 +226,11 @@ def main():
         st.error("Could not connect to the database. Please check your configuration.")
         return
 
-    initialize_session_state()
+    
     st.title("Data Harmonization")
 
     with st.form("schema_config_form"):
+        initialize_session_state()
         col1, col2 = st.columns(2)
         with col1:
             provider_name = st.text_input("Provider Name", key="provider_name")
@@ -279,6 +280,16 @@ def main():
         show_editors_and_update(service, provider_name)
         show_final_workflow_result(provider_name)
 
+        for key in [
+                    "df_keymap",
+                    "df_data",
+                    "keymap_id",
+                    "data_id",
+                    "provider_name",
+                    "df_data_schema",
+                ]:
+                    if key in st.session_state:
+                        del st.session_state[key]
 
 if __name__ == "__main__":
     main()
