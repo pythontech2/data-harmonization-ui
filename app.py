@@ -280,16 +280,5 @@ def main():
         show_editors_and_update(service, provider_name)
         show_final_workflow_result(provider_name)
 
-        for key in [
-                    "df_keymap",
-                    "df_data",
-                    "keymap_id",
-                    "data_id",
-                    "provider_name",
-                    "df_data_schema",
-                ]:
-                    if key in st.session_state:
-                        del st.session_state[key]
-
 if __name__ == "__main__":
     main()
