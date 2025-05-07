@@ -78,7 +78,7 @@ class DataHarmonizationService:
                 "$or": [
                     {
                         "statusFlow": { "$lt": "3" },
-                        "schemaVersion": { "$regex": "_err$" }
+                        "schemaVersion": { "$eq": f"{form_data['target_schema_version']}_err" }
                     },
                     {
                         "statusFlow": "3",
@@ -90,7 +90,7 @@ class DataHarmonizationService:
                 ]
             }
             result = list(self.schema_collection_data.find(query))
-            print("result::", result)
+            # print("result::", result)
             if result:
                 return {
                     "status_code": 200,

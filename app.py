@@ -91,8 +91,8 @@ def handle_form_submission(
         "generate_missing_key": str(generate_missing_key).lower(),
     }
     result = service.submit_harmonization_request(form_data, input_file, generate_missing_key)
-
-    if result and result.get("status_code") == 200 and "_err" not in result.get("schemaVersion", ""):
+    print("---",result)
+    if result and result.get("status_code") == 200 and "_err" not in result["response_data"][0].get("schemaVersion", ""):
         docs = result["response_data"]
         if not docs:
             st.error("No documents found for the target schema version.")
@@ -119,8 +119,42 @@ def handle_form_submission(
         st.session_state.data_id = doc["_id"]
         st.session_state.df_data_schema = df_data_schema
 
-    else:
-        st.error("Failed to generate KeyMap and Master Schema.")
+
+    else:  # Error Scenario
+        print("Error Scenario")
+        keymap_data = service.fetch_keymap_data(provider_name)
+        print("keymap_data::", keymap_data)
+        if isinstance(keymap_data, str):
+            st.error(keymap_data)
+        else:
+            df_keymap = pd.DataFrame(
+                keymap_data[0][provider_name].items(), columns=["Source", "Target"]
+            )
+            print("df_keymap::", df_keymap)
+            st.session_state.df_keymap = df_keymap
+            st.session_state.keymap_id = keymap_data[0]["_id"]
+        time.sleep(10)
+        target_schema_data = service.fetch_data_from_target_schema(
+            target_schema_version + "_err"
+        )
+        if isinstance(target_schema_data, str):
+            return st.error(target_schema_data)
+
+        df_data = pd.DataFrame(target_schema_data[0]["schema"])
+        df_data_schema = pd.DataFrame(
+            [
+                {
+                    "schemaVersion": target_schema_data[0]["schemaVersion"],
+                    "_id": target_schema_data[0]["_id"],
+                    "statusFlow": target_schema_data[0].get("statusFlow", "NA"),
+                }
+            ]
+        )
+
+        st.session_state.df_data = df_data
+
+        st.session_state.data_id = target_schema_data[0]["_id"]
+        st.session_state.df_data_schema = df_data_schema
 
 
 def show_final_workflow_result(provider_name):
