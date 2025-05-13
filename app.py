@@ -10,7 +10,7 @@ from services import DataHarmonizationService
 
 load_dotenv()
 
-
+st.set_page_config(layout="wide")
 def initialize_session_state():
     for key in [
         "df_keymap",
@@ -90,8 +90,10 @@ def handle_form_submission(
         "target_schema_version": target_schema_version,
         "generate_missing_key": str(generate_missing_key).lower(),
     }
-    result = service.submit_harmonization_request(form_data, input_file, generate_missing_key)
-    print("---",result)
+
+
+    result = service.submit_harmonization_request(form_data, input_file)
+
     if result and result.get("status_code") == 200 and "_err" not in result["response_data"][0].get("schemaVersion", ""):
         docs = result["response_data"]
         if not docs:
@@ -123,14 +125,14 @@ def handle_form_submission(
     else:  # Error Scenario
         print("Error Scenario")
         keymap_data = service.fetch_keymap_data(provider_name)
-        print("keymap_data::", keymap_data)
+
         if isinstance(keymap_data, str):
             st.error(keymap_data)
         else:
             df_keymap = pd.DataFrame(
                 keymap_data[0][provider_name].items(), columns=["Source", "Target"]
             )
-            print("df_keymap::", df_keymap)
+            
             st.session_state.df_keymap = df_keymap
             st.session_state.keymap_id = keymap_data[0]["_id"]
         time.sleep(10)
@@ -172,30 +174,59 @@ def show_final_workflow_result(provider_name):
             mime="application/json",
         )
 
+def show_missing_keys(service, target_schema_version):
+    st.markdown("---")
+    st.markdown("### Missing Keys")
+    missing_keys_data = service.fetch_missing_keys_data(target_schema_version)
+    st.dataframe(missing_keys_data, use_container_width=True)
+
+
 
 def show_editors_and_update(service, provider_name, target_schema_version):
     st.markdown("---")
     st.markdown("### GeneratedSchema Info")
     st.table(st.session_state.df_data_schema)
 
+    # Initialize or increment editor version for forcing re-render
+    if "editor_version" not in st.session_state:
+        st.session_state.editor_version = 0
+
     st.markdown("## Edit Keymap & Target Schema")
-    with st.form("edit_form", clear_on_submit=False):
+    # with st.form("edit_form", clear_on_submit=False):
+    # Create two columns for side-by-side display
+    col1, col2 = st.columns([0.7,0.3])
+    
+    with col1:
         st.write("### Keymap")
-        edited_keymap = st.data_editor(st.session_state.df_keymap, key="keymap_editor")
-        st.session_state.df_keymap = edited_keymap
+        edited_keymap = st.data_editor(st.session_state.df_keymap, key="keymap_editor", num_rows="dynamic",on_change=lambda: st.session_state.df_keymap)
+        # st.session_state.df_keymap = edited_keymap
 
-        st.write("### Target schema")
-        edited_schema = st.data_editor(st.session_state.df_data, key="schema_editor")
-        st.session_state.df_data = edited_schema
+    with col2:
+        # Show Missing Keys table when generate_missing_key is true
+        if st.session_state.get("generate_missing_key", False):
+            st.write("### Missing Keys")
+            missing_keys_data = service.fetch_missing_keys_data(target_schema_version)
+            if isinstance(missing_keys_data, str):
+                st.error(missing_keys_data)
+            else:
+                st.dataframe(missing_keys_data, use_container_width=True)
+    
+    
+    # Target schema section below the columns
+    st.write("### Target schema")
+    edited_schema = st.data_editor(st.session_state.df_data, key="schema_editor", num_rows="dynamic",on_change=lambda: st.session_state.df_data)
 
-        updated_schema = fix_json_columns(
-            edited_schema.to_dict("records"), ["constraints", "itemDefinition"]
-        )
+    
 
+    updated_schema = fix_json_columns(
+        edited_schema.to_dict("records"), ["constraints", "itemDefinition"]
+    )
+        # st.session_state.df_data = edited_schema
+    with st.form("edit_form", clear_on_submit=False,border=False):
         if st.form_submit_button(
             "Update in MongoDB",
             type="primary",
-            disabled=st.session_state.get("df_keymap").empty,
+            disabled=st.session_state.get("df_keymap") is None,
         ):
             ok = service.update_collections_data(
                 data_id=st.session_state.data_id,
@@ -204,6 +235,7 @@ def show_editors_and_update(service, provider_name, target_schema_version):
                 updated_keymap=dict(edited_keymap.values),
                 provider_name=provider_name,
             )
+            
             if ok:
                 st.success("Edits saved to MongoDB!")
                 # Execute the next workflow and store result in session state
@@ -213,7 +245,7 @@ def show_editors_and_update(service, provider_name, target_schema_version):
                 ):
                     df_result, json_result = execute_final_workflow(
                         service,
-                        st.session_state.input_file_data,  # This is now a dict, not a file
+                        st.session_state.input_file_data,
                         st.session_state.data_id,
                         provider_name,
                     )
@@ -222,14 +254,13 @@ def show_editors_and_update(service, provider_name, target_schema_version):
             else:  # Error Scenario
                 print("Error Scenario")
                 keymap_data = service.fetch_keymap_data(provider_name)
-                print("keymap_data::", keymap_data)
+                
                 if isinstance(keymap_data, str):
                     st.error(keymap_data)
                 else:
                     df_keymap = pd.DataFrame(
                         keymap_data[0][provider_name].items(), columns=["Source", "Target"]
                     )
-                    print("df_keymap::", df_keymap)
                     st.session_state.df_keymap = df_keymap
                     st.session_state.keymap_id = keymap_data[0]["_id"]
                     time.sleep(10)

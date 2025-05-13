@@ -23,6 +23,8 @@ class DataHarmonizationService:
 
         self.schema_collection_keymap = self.db["KeyMaps"]
 
+        self.schema_collection_missing_keys = self.db["MissingKeys"]
+
     def convert_objectid_to_str(self, obj):
         if isinstance(obj, dict):
             return {k: self.convert_objectid_to_str(v) for k, v in obj.items()}
@@ -56,7 +58,7 @@ class DataHarmonizationService:
             return []
 
     def submit_harmonization_request(
-        self, form_data: Dict[str, Any], input_file: Any,generate_missing_key:bool
+        self, form_data: Dict[str, Any], input_file: Any
     ) -> Dict[str, Any]:
         """
         Submit harmonization request to the webhook
@@ -121,7 +123,7 @@ class DataHarmonizationService:
                 return f"No data found for {target_schema_version}"
         except Exception as e:
             return f"Error fetching data from target schema: {str(e)}"
-
+    
     def update_collections_data(
         self, data_id, updated_schema, keymap_id, updated_keymap, provider_name
     ):
@@ -129,6 +131,7 @@ class DataHarmonizationService:
         Update both Data and keyMaps collections.
         """
         try:
+
             # Update Data collection
             data_result = self.schema_collection_data.update_one(
                 {"_id": data_id}, {"$set": {"schema": updated_schema}}
@@ -137,8 +140,9 @@ class DataHarmonizationService:
             keymap_result = self.schema_collection_keymap.update_one(
                 {"_id": keymap_id}, {"$set": {provider_name: updated_keymap}}
             )
-            print("data_result::", data_result)
-            print("keymap_result::", keymap_result)
+            print("data_result::", data_result.modified_count)
+            print("keymap_result::", keymap_result.modified_count)
+
             return data_result.modified_count > 0 or keymap_result.modified_count > 0
         except Exception as e:
             print(f"Error updating collections: {str(e)}")
@@ -161,3 +165,14 @@ class DataHarmonizationService:
         except Exception as e:
             print(f"Error in final workflow: {str(e)}")
             return {"success": False, "error": str(e)}
+    
+    def fetch_missing_keys_data(self, target_schema_version: str):
+        try:
+            query = {"schemaVersion": target_schema_version}
+            documents = list(self.schema_collection_missing_keys.find(query))
+            if documents:
+                return list(documents[0]['missing_keys'])   
+            else:
+                return f"No missing keys found for {target_schema_version}"
+        except Exception as e:
+            return f"Error fetching missing keys: {str(e)}"
